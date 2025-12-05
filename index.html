@@ -43,7 +43,7 @@ function getRoundedTimestamp() {
     const mm = pad(rounded.getMinutes());
     const timeStr = `${hh}:${mm} ${ampm}`;
 
-    // Date (short like TRMNL)
+    // Date (short)
     const dateStr = rounded.toLocaleDateString(undefined, {
         weekday: 'short',
         month: 'short',
@@ -68,18 +68,26 @@ function initCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
+    fontSize = 18;
     cols = Math.floor(canvas.width / fontSize);
-    drops = Array(cols).fill(0).map(() => Math.random() * -20);
+
+    const maxRows = Math.floor(canvas.height / fontSize);
+
+    // Seed drops so FIRST frame already has characters across the screen
+    drops = [];
+    for (let i = 0; i < cols; i++) {
+        // random starting row between 0 and maxRows
+        drops[i] = Math.floor(Math.random() * maxRows);
+    }
+
+    ctx.font = fontSize + "px monospace";
 }
 initCanvas();
 window.addEventListener("resize", initCanvas);
 
 const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{};:<>,.?/";
-ctx.font = fontSize + "px monospace";
 
 // ---------------- EMBED TIME + DATE ----------------
-// We embed characters by selecting rows/columns and replacing
-// whatever character appears in that stream.
 
 function embedStringInColumns(str, startCol, row) {
     return str.split("").map((ch, i) => ({
@@ -89,23 +97,31 @@ function embedStringInColumns(str, startCol, row) {
     }));
 }
 
-// Time & date placement
-const centerCol = Math.floor(cols / 2);
-const timeColStart = centerCol - Math.floor(timeStr.length / 2);
-const dateColStart = centerCol - Math.floor(dateStr.length / 2);
+const centerCol = () => Math.floor(cols / 2);
+let embed = [];
 
-const embed = [
-    ...embedStringInColumns(timeStr, timeColStart, 14),
-    ...embedStringInColumns(dateStr, dateColStart, 16)
-];
+function recomputeEmbedPositions() {
+    const c = centerCol();
+    const timeColStart = c - Math.floor(timeStr.length / 2);
+    const dateColStart = c - Math.floor(dateStr.length / 2);
+
+    embed = [
+        ...embedStringInColumns(timeStr, timeColStart, 14),
+        ...embedStringInColumns(dateStr, dateColStart, 16)
+    ];
+}
+recomputeEmbedPositions();
 
 // ---------------- DRAW FRAME ----------------
 
 function draw() {
+    // light fade for trailing effect
     ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "rgba(255,255,255,0.75)"; // normal rain
+    // background rain (slightly dim)
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.font = fontSize + "px monospace";
 
     for (let i = 0; i < cols; i++) {
         const text = chars.charAt(Math.floor(Math.random() * chars.length));
@@ -121,14 +137,19 @@ function draw() {
         }
     }
 
-    // --- Draw embedded TIME + DATE ---
-    ctx.fillStyle = "rgba(255,255,255,0.95)"; // slightly brighter
+    // embedded TIME + DATE (slightly brighter)
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
     embed.forEach(e => {
         ctx.fillText(e.ch, e.col * fontSize, e.row * fontSize);
     });
 }
 
-// Animate internally; e-ink displays only snapshots
+// ---- IMPORTANT: draw immediately so previews aren't black ----
+draw();                      // first frame right away
+setTimeout(draw, 60);        // a couple more quick frames
+setTimeout(draw, 120);
+
+// then continue at a steady pace for normal operation
 setInterval(draw, 250);
 </script>
 
