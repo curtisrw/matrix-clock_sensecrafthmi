@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Matrix Clock (800x400 Optimized)</title>
+<title>Curtis Matrix Clock</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
   html, body {
@@ -20,141 +20,147 @@
 <canvas id="matrix"></canvas>
 
 <script>
-// ================== TIME (5-MIN ROUND, 12-HOUR + AM/PM) ==================
+// =============== TIME (5-MIN ROUND, 12-HOUR + AM/PM) ==================
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
 function getRoundedTimestamp() {
-    const now = new Date();
+  const now = new Date();
 
-    const rounded = new Date(now);
-    rounded.setMinutes(Math.floor(now.getMinutes() / 5) * 5, 0, 0);
+  const rounded = new Date(now);
+  rounded.setMinutes(Math.floor(now.getMinutes() / 5) * 5, 0, 0);
 
-    let h = rounded.getHours();
-    const ampm = h >= 12 ? "PM" : "AM";
-    h = h % 12;
-    if (h === 0) h = 12;
+  let h = rounded.getHours();
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
 
-    const hh = pad(h);
-    const mm = pad(rounded.getMinutes());
+  const hh = pad(h);
+  const mm = pad(rounded.getMinutes());
+  const timeStr = `${hh}:${mm} ${ampm}`;
 
-    const timeStr = `${hh}:${mm} ${ampm}`;
+  const dateStr = rounded.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric"
+  });
 
-    const dateStr = rounded.toLocaleDateString(undefined, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
-    });
-
-    return { timeStr, dateStr };
+  return { timeStr, dateStr };
 }
 
 const { timeStr, dateStr } = getRoundedTimestamp();
 
-
-// ================== MATRIX SETUP ==================
+// ======================= MATRIX SETUP =========================
 const canvas = document.getElementById("matrix");
 const ctx = canvas.getContext("2d");
 
-// PERFECT SIZE FOR 800×400
-let fontSize = 14;  
-let cols;
+let fontSize = 12;
+let cols = 0;
+let maxRows = 0;
 let drops = [];
 let embed = [];
 
-const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{};:<>,.?/";
+const chars =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{};:<>,.?/";
 
-// ---------------- Recompute Grid ----------------
+// recompute layout for current size (works for 800x480 + previews)
 function initCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 
-    // Font scaled for 800px width
-    fontSize = Math.floor(canvas.width / 56);  
-    if (fontSize < 12) fontSize = 12;
-    if (fontSize > 16) fontSize = 16;
+  // smaller font -> more columns (matrix-style)
+  fontSize = Math.floor(canvas.width / 64); // ~64 cols at 800px
+  if (fontSize < 10) fontSize = 10;
+  if (fontSize > 14) fontSize = 14;
 
-    ctx.font = fontSize + "px monospace";
+  ctx.font = fontSize + "px monospace";
 
-    cols = Math.floor(canvas.width / fontSize);
-    const maxRows = Math.floor(canvas.height / fontSize);
+  cols = Math.floor(canvas.width / fontSize);
+  maxRows = Math.floor(canvas.height / fontSize);
 
-    // Seed drops at random visible rows
-    drops = Array(cols).fill(0).map(() => Math.floor(Math.random() * maxRows));
+  // start drops above screen so they "fall in" and build trails
+  drops = Array(cols)
+    .fill(0)
+    .map(() => Math.floor(Math.random() * -maxRows));
 
-    computeEmbedPositions(maxRows);
+  computeEmbedPositions();
 }
 
-function computeEmbedPositions(maxRows) {
-    // Place time & date centered vertically
-    const centerRow = Math.floor(maxRows / 2);
+function computeEmbedPositions() {
+  const centerCol = Math.floor(cols / 2);
+  const centerRow = Math.floor(maxRows / 2);
 
-    // Time sits in the middle, date slightly below
-    const timeRow = centerRow;
-    const dateRow = centerRow + 2;
+  // time slightly above true center, date slightly below
+  const timeRow = centerRow - 1;
+  const dateRow = centerRow + 1;
 
-    const centerCol = Math.floor(cols / 2);
-    const timeStart = centerCol - Math.floor(timeStr.length / 2);
-    const dateStart = centerCol - Math.floor(dateStr.length / 2);
+  const timeStart = centerCol - Math.floor(timeStr.length / 2);
+  const dateStart = centerCol - Math.floor(dateStr.length / 2);
 
-    embed = [];
+  embed = [];
 
-    for (let i = 0; i < timeStr.length; i++) {
-        embed.push({
-            col: timeStart + i,
-            row: timeRow,
-            ch: timeStr.charAt(i)
-        });
-    }
+  for (let i = 0; i < timeStr.length; i++) {
+    embed.push({
+      col: timeStart + i,
+      row: timeRow,
+      ch: timeStr.charAt(i)
+    });
+  }
 
-    for (let i = 0; i < dateStr.length; i++) {
-        embed.push({
-            col: dateStart + i,
-            row: dateRow,
-            ch: dateStr.charAt(i)
-        });
-    }
+  for (let i = 0; i < dateStr.length; i++) {
+    embed.push({
+      col: dateStart + i,
+      row: dateRow,
+      ch: dateStr.charAt(i)
+    });
+  }
 }
 
 initCanvas();
 window.addEventListener("resize", initCanvas);
 
+// ======================= DRAW FRAME ===========================
+function drawFrame() {
+  // very light fade -> strong ghost trails like your target photo
+  ctx.fillStyle = "rgba(0, 0, 0, 0.06)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-// ================== DRAW FRAME ==================
-function draw() {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // normal rain
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.font = fontSize + "px monospace";
 
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
+  for (let i = 0; i < cols; i++) {
+    const char = chars.charAt(Math.floor(Math.random() * chars.length));
+    const x = i * fontSize;
+    const y = drops[i] * fontSize;
 
-    for (let i = 0; i < cols; i++) {
-        const text = chars.charAt(Math.floor(Math.random() * chars.length));
-        const x = i * fontSize;
-        const y = drops[i] * fontSize;
+    ctx.fillText(char, x, y);
 
-        ctx.fillText(text, x, y);
+    drops[i]++;
 
-        drops[i]++;
-
-        if (y > canvas.height && Math.random() > 0.96) {
-            drops[i] = Math.floor(Math.random() * -20);
-        }
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+      drops[i] = Math.floor(Math.random() * -maxRows);
     }
+  }
 
-    // Embedded time/date (slightly brighter)
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    embed.forEach(e => {
-        ctx.fillText(e.ch, e.col * fontSize, e.row * fontSize);
-    });
+  // embedded time/date – just slightly brighter but same style
+  ctx.fillStyle = "rgba(255,255,255,0.96)";
+  embed.forEach(e => {
+    ctx.fillText(e.ch, e.col * fontSize, e.row * fontSize);
+  });
 }
 
-// Immediate frames so SenseCraft preview doesn't show black
-draw();
-setTimeout(draw, 50);
-setTimeout(draw, 120);
+// warm-up: build trails BEFORE previews grab a snapshot
+function warmup(frames) {
+  for (let i = 0; i < frames; i++) {
+    drawFrame();
+  }
+}
 
-// Animation (your e-ink will only capture snapshots)
-setInterval(draw, 200);
+// run a warmup to get that dense, ghosted background immediately
+warmup(Math.floor(maxRows * 1.3));
 
+// then run at a steady pace; e-ink will just capture snapshots
+setInterval(drawFrame, 180);
 </script>
 </body>
 </html>
