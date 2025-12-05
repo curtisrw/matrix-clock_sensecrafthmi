@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Curtis Matrix Clock (Embedded)</title>
+<title>Curtis Matrix Clock (Blended)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
   html, body {
@@ -62,7 +62,7 @@ let embeds = [];
 const chars =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{};:<>,.?/";
 
-// compute layout for current size (works for 800x480 + previews)
+// compute layout for current size (800x480 + previews)
 function initCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -85,8 +85,6 @@ function initCanvas() {
   computeEmbeds();
 }
 
-// build list of embedded characters (time + date)
-// each with a column & row position
 function computeEmbeds() {
   const centerCol = Math.floor(cols / 2);
   const centerRow = Math.floor(maxRows / 2);
@@ -119,22 +117,15 @@ function computeEmbeds() {
 initCanvas();
 window.addEventListener("resize", initCanvas);
 
-// quick lookup: for any column, do we have an embedded char there?
-function embedForColumn(col) {
-  // there may be multiple (time + date) in same col, but that’s fine
-  return embeds.filter(e => e.col === col);
-}
-
 // =================== DRAW FRAME ===================
 function drawFrame() {
-  // very light fade -> strong ghost trails (TRMNL look)
+  // very light fade -> strong ghost trails
   ctx.fillStyle = "rgba(0, 0, 0, 0.06)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.font = fontSize + "px monospace";
-
-  // first, advance drops & draw normal rain
+  // 1) normal rain
   ctx.fillStyle = "rgba(255,255,255,0.70)";
+  ctx.font = fontSize + "px monospace";
 
   for (let col = 0; col < cols; col++) {
     const x = col * fontSize;
@@ -150,23 +141,19 @@ function drawFrame() {
     }
   }
 
-  // now "embed" the time/date inside those same columns:
-  // force the drop position for those columns to the desired row,
-  // and draw a bold, bright glyph at that exact grid cell.
+  // 2) overlay time/date characters on top of the rain
+  //    (same grid, just brighter + bold)
   ctx.font = "bold " + fontSize + "px monospace";
-  ctx.fillStyle = "rgba(255,255,255,1)";
+  ctx.fillStyle = "rgba(255,255,255,0.98)";
 
   embeds.forEach(e => {
-    // ensure the rain in this column is at the embed row
-    drops[e.col] = e.row;
-
     const x = e.col * fontSize;
     const y = e.row * fontSize;
     ctx.fillText(e.ch, x, y);
   });
 }
 
-// warm up a bunch of frames so the first snapshot is nicely dense
+// warm up a bunch of frames so the background gets dense immediately
 function warmup(frames) {
   for (let i = 0; i < frames; i++) {
     drawFrame();
