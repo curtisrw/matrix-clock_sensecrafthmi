@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Curtis Matrix Clock (Large Floating Characters)</title>
+<title>Curtis Matrix Clock (Ordered Floating)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
   html, body {
@@ -48,16 +48,14 @@ function getRoundedTimestamp() {
 }
 
 const { timeStr, dateStr } = getRoundedTimestamp();
-
-// Build character list
-const combinedStr = timeStr + "  " + dateStr;
+const combinedStr = timeStr + "  " + dateStr; // includes spaces
 
 // ================= MATRIX SETUP ==================
 const canvas = document.getElementById("matrix");
 const ctx = canvas.getContext("2d");
 
 let rainFont = 12;       // small font for rain
-let embedFont = 22;      // LARGE font only for time/date
+let embedFont = 22;      // larger font only for time/date chars
 let cols = 0;
 let maxRows = 0;
 let drops = [];
@@ -71,11 +69,11 @@ function initCanvas() {
   canvas.height = window.innerHeight;
 
   // small dense rain
-  rainFont = Math.floor(canvas.width / 68);
+  rainFont = Math.floor(canvas.width / 68);   // ~68 cols at 800px
   if (rainFont < 10) rainFont = 10;
   if (rainFont > 14) rainFont = 14;
 
-  embedFont = Math.floor(rainFont * 1.9);  // ~2× larger, visually strong
+  embedFont = Math.floor(rainFont * 1.9);    // ~2× larger
   if (embedFont < 18) embedFont = 18;
 
   ctx.font = rainFont + "px monospace";
@@ -94,30 +92,40 @@ function initCanvas() {
 function computeEmbeds() {
   embeds = [];
 
-  // scatter characters across central region of display
-  const minCol = Math.floor(cols * 0.18);
-  const maxCol = Math.floor(cols * 0.82);
+  // central band where characters will float
+  const minRow = Math.floor(maxRows * 0.28);
+  const maxRow = Math.floor(maxRows * 0.72);
 
-  const minRow = Math.floor(maxRows * 0.20);
-  const maxRow = Math.floor(maxRows * 0.80);
+  // we keep order left-to-right by using a running column
+  const totalChars = combinedStr.length;
+  const centerCol = Math.floor(cols / 2);
 
-  const used = new Set();
+  // start column so the whole string is roughly centered,
+  // but we will add random gaps between characters
+  let col = centerCol - Math.floor(totalChars / 2);
+
+  if (col < 1) col = 1;
+  if (col > cols - totalChars - 1) col = cols - totalChars - 1;
 
   for (let i = 0; i < combinedStr.length; i++) {
     const ch = combinedStr.charAt(i);
+
+    // advance column by 1–3 cells to get uneven spacing but monotonic
+    col += 1 + Math.floor(Math.random() * 2); // step of 1 or 2
+
+    // clamp so we don't run off the right edge
+    if (col >= cols - 2) col = cols - 3;
+
+    // choose a row around the middle with a little vertical jitter
+    const baseRow = Math.floor((minRow + maxRow) / 2);
+    const jitter = Math.floor(Math.random() * 5) - 2; // -2..+2
+    let row = baseRow + jitter;
+    if (row < minRow) row = minRow;
+    if (row > maxRow) row = maxRow;
+
+    // for spaces, we skip drawing but keep advancing cols so spacing remains
     if (ch === " ") continue;
 
-    let col, row, key;
-    let tries = 0;
-
-    do {
-      col = Math.floor(Math.random() * (maxCol - minCol)) + minCol;
-      row = Math.floor(Math.random() * (maxRow - minRow)) + minRow;
-      key = col + ":" + row;
-      tries++;
-    } while (used.has(key) && tries < 80);
-
-    used.add(key);
     embeds.push({ col, row, ch });
   }
 }
@@ -131,7 +139,7 @@ function drawFrame() {
   ctx.fillStyle = "rgba(0,0,0,0.06)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // ==== 1. Draw small RAIN ====
+  // 1) small Matrix rain
   ctx.font = rainFont + "px monospace";
   ctx.fillStyle = "rgba(255,255,255,0.70)";
 
@@ -149,12 +157,12 @@ function drawFrame() {
     }
   }
 
-  // ==== 2. Draw LARGE floating date/time characters ====
+  // 2) large floating ordered time/date chars
   ctx.font = "bold " + embedFont + "px monospace";
-  ctx.fillStyle = "rgba(255,255,255,1)";   // full brightness
+  ctx.fillStyle = "rgba(255,255,255,1)";
 
   embeds.forEach(e => {
-    const x = e.col * rainFont;       // grid-aligned
+    const x = e.col * rainFont;  // still snapping to rain grid horizontally
     const y = e.row * rainFont;
     ctx.fillText(e.ch, x, y);
   });
