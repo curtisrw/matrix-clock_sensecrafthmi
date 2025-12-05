@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Matrix Clock</title>
+  <title>Matrix Time</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     html, body {
@@ -19,108 +19,88 @@
     canvas {
       display: block;
     }
-
-    .overlay {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      pointer-events: none;
-    }
-
-    .label {
-      font-size: 14px;
-      margin-bottom: 8px;
-      opacity: 0.8;
-    }
-
-    .time {
-      font-size: 64px;
-      letter-spacing: 0.14em;
-    }
-
-    .date {
-      font-size: 20px;
-      margin-top: 8px;
-      opacity: 0.9;
-    }
   </style>
 </head>
 <body>
-  <!-- Matrix background -->
   <canvas id="matrix"></canvas>
 
-  <!-- Clock overlay -->
-  <div class="overlay">
-    <div class="label">MATRIX CLOCK</div>
-    <div class="time" id="time">--:--</div>
-    <div class="date" id="date">Loading…</div>
-  </div>
-
   <script>
-    // ---------- CLOCK ----------
+    // ------- TIME (12-HOUR FORMAT WITH AM/PM, ROUNDED TO 5 MINUTES) -------
     function pad(n) {
       return n < 10 ? "0" + n : "" + n;
     }
 
-    function updateClock() {
+    function getRoundedTimeString() {
       const now = new Date();
-      const hours = pad(now.getHours());
-      const minutes = pad(now.getMinutes());
 
-      const timeEl = document.getElementById("time");
-      const dateEl = document.getElementById("date");
+      // Round DOWN to nearest 5 minutes
+      const rounded = new Date(now);
+      const flooredMinutes = Math.floor(rounded.getMinutes() / 5) * 5;
+      rounded.setMinutes(flooredMinutes, 0, 0);
 
-      if (!timeEl || !dateEl) return;
+      // Convert to 12-hour time
+      let hours = rounded.getHours();
+      const minutes = pad(rounded.getMinutes());
+      const ampm = hours >= 12 ? "PM" : "AM";
 
-      timeEl.textContent = hours + ":" + minutes;
+      hours = hours % 12;
+      if (hours === 0) hours = 12; // midnight/noon edge case
+      const hoursStr = pad(hours);
 
-      const options = {
-        weekday: "short",
-        year: "numeric",
-        month: "short",
-        day: "numeric"
-      };
-      dateEl.textContent = now.toLocaleDateString(undefined, options);
+      // Example output: "10:15 AM"
+      return `${hoursStr}:${minutes} ${ampm}`;
     }
 
-    updateClock();
-    setInterval(updateClock, 60 * 1000); // once per minute
+    const timeString = getRoundedTimeString();
 
-    // ---------- MATRIX BACKGROUND ----------
+
+    // ------------------------ MATRIX BACKGROUND ------------------------
     const canvas = document.getElementById("matrix");
     const ctx = canvas.getContext("2d");
 
     const letters = "01ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%&*+-";
     let drops = [];
-    let fontSize = 14;
+    let fontSize = 16;
     let columns = 0;
+
+    // Time embedding coordinates
+    let timeCols = [];
+    let timeRow = 0;
 
     function initCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
 
-      fontSize = 14; // tweak if you want denser / sparser rain
+      fontSize = 16;
       columns = Math.floor(canvas.width / fontSize);
-      drops = [];
 
+      drops = [];
       for (let i = 0; i < columns; i++) {
-        // start each drop at a random vertical offset (including above screen)
         drops[i] = Math.floor(Math.random() * -20);
       }
+
+      // Place the time centered horizontally inside the rain
+      const len = timeString.length; 
+      const baseCol = Math.floor(columns / 2) - Math.floor(len / 2);
+
+      timeCols = [];
+      for (let i = 0; i < len; i++) {
+        timeCols.push(baseCol + i);
+      }
+
+      // Vertically center the time
+      timeRow = Math.floor(canvas.height / (2 * fontSize));
     }
 
-    function drawMatrix() {
-      // trail fade
-      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+    function drawMatrixFrame() {
+      // trail effect
+      ctx.fillStyle = "rgba(0,0,0,0.22)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = "#00ff00";
       ctx.font = fontSize + "px monospace";
 
+      // Background rain
+      ctx.fillStyle = "#00aa00"; // slightly dimmer green for background rain
       for (let i = 0; i < drops.length; i++) {
         const text = letters.charAt(Math.floor(Math.random() * letters.length));
         const x = i * fontSize;
@@ -128,22 +108,34 @@
 
         ctx.fillText(text, x, y);
 
-        // reset drop to random position at top after it goes off-screen
         if (y > canvas.height && Math.random() > 0.95) {
           drops[i] = Math.floor(Math.random() * -10);
         } else {
           drops[i]++;
         }
       }
+
+      // TIME CHARACTERS — brighter and bolder 💡
+      ctx.fillStyle = "#00ff55"; // stronger green (more visible on e-ink)
+      ctx.font = "bold " + fontSize + "px monospace";
+
+      for (let i = 0; i < timeString.length; i++) {
+        const col = timeCols[i];
+        const ch = timeString.charAt(i);
+
+        const x = col * fontSize;
+        const y = timeRow * fontSize;
+
+        ctx.fillText(ch, x, y);
+      }
     }
 
-    // Initialize and start
+    // Initialize and animate (panel will only show snapshots)
     initCanvas();
     window.addEventListener("resize", initCanvas);
 
-    // For normal screens, 100–150 ms looks good.
-    // For e-ink, you can slow this way down (e.g. 500–1000) to reduce flashing.
-    setInterval(drawMatrix, 150);
+    // Continuous animation (e-ink will capture only periodic snapshots)
+    setInterval(drawMatrixFrame, 200);
   </script>
 </body>
 </html>
