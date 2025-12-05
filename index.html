@@ -26,41 +26,41 @@ function pad(n) { return n < 10 ? "0" + n : "" + n; }
 function getRoundedTimestamp() {
   const now = new Date();
 
-  // SenseCraft cloud appears ~14h ahead of CST, so subtract 14 hours.
-  // If this ever changes, just tweak OFFSET_HOURS.
+  // Apply CST correction (-14 hr offset due to cloud)
   const OFFSET_HOURS = -14;
   const adjusted = new Date(now.getTime() + OFFSET_HOURS * 60 * 60 * 1000);
 
+  // Round to nearest 5-min block
   const rounded = new Date(adjusted);
   rounded.setMinutes(Math.floor(adjusted.getMinutes() / 5) * 5, 0, 0);
 
+  // ---- 12-hour format with NO leading zero ----
   let h = rounded.getHours();
   const ampm = h >= 12 ? "PM" : "AM";
   h = h % 12;
   if (h === 0) h = 12;
+  const hourStr = String(h);  // <-- NO pad()
 
-  const hh = pad(h);
   const mm = pad(rounded.getMinutes());
-  const timeStr = `${hh}:${mm} ${ampm}`;
+  const timeStr = `${hourStr}:${mm} ${ampm}`;
 
-  const dateStr = rounded.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric"
-  });
+  // ---- FULL weekday name ----
+  const weekday = rounded.toLocaleDateString(undefined, { weekday: "long" });
+  const monthDay = rounded.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const dateStr = `${weekday}, ${monthDay}`;
 
   return { timeStr, dateStr };
 }
 
 const { timeStr, dateStr } = getRoundedTimestamp();
-const combinedStr = timeStr + "  " + dateStr; // includes spaces
+const combinedStr = timeStr + "  " + dateStr;
 
 // ================= MATRIX SETUP ==================
 const canvas = document.getElementById("matrix");
 const ctx = canvas.getContext("2d");
 
-let rainFont = 12;       // small font for rain
-let embedFont = 22;      // larger font for time/date chars
+let rainFont = 12;
+let embedFont = 22;
 let cols = 0;
 let maxRows = 0;
 let drops = [];
@@ -68,17 +68,15 @@ let embeds = [];
 
 const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{};:<>,.?/";
 
-// compute layout for current size
 function initCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
-  // small dense rain
-  rainFont = Math.floor(canvas.width / 68);   // ~68 cols at 800px
+  rainFont = Math.floor(canvas.width / 68);
   if (rainFont < 10) rainFont = 10;
   if (rainFont > 14) rainFont = 14;
 
-  embedFont = Math.floor(rainFont * 1.9);    // ~2× larger
+  embedFont = Math.floor(rainFont * 1.9);
   if (embedFont < 18) embedFont = 18;
 
   ctx.font = rainFont + "px monospace";
@@ -86,7 +84,6 @@ function initCanvas() {
   cols = Math.floor(canvas.width / rainFont);
   maxRows = Math.floor(canvas.height / rainFont);
 
-  // start drops above screen to create long trails
   drops = Array(cols)
     .fill(0)
     .map(() => Math.floor(Math.random() * -maxRows));
@@ -97,14 +94,12 @@ function initCanvas() {
 function computeEmbeds() {
   embeds = [];
 
-  // central vertical band; we'll jitter characters inside this range
   const minRow = Math.floor(maxRows * 0.22);
   const maxRow = Math.floor(maxRows * 0.78);
 
   const totalChars = combinedStr.length;
   const centerCol = Math.floor(cols / 2);
 
-  // base column so the full string is roughly centered
   let col = centerCol - Math.floor(totalChars / 2);
   if (col < 1) col = 1;
   if (col > cols - totalChars - 1) col = cols - totalChars - 1;
@@ -112,18 +107,16 @@ function computeEmbeds() {
   for (let i = 0; i < combinedStr.length; i++) {
     const ch = combinedStr.charAt(i);
 
-    // uneven spacing but monotonic left-to-right
-    col += 1 + Math.floor(Math.random() * 2); // step of 1 or 2
+    col += 1 + Math.floor(Math.random() * 2);
     if (col >= cols - 2) col = cols - 3;
 
-    // base row near middle of band, with larger vertical jitter
     const midBand = Math.floor((minRow + maxRow) / 2);
-    const jitter = Math.floor(Math.random() * 13) - 6; // -6..+6 rows
+    const jitter = Math.floor(Math.random() * 13) - 6; // -6..+6
     let row = midBand + jitter;
     if (row < minRow) row = minRow;
     if (row > maxRow) row = maxRow;
 
-    if (ch === " ") continue; // skip spaces but keep spacing effect
+    if (ch === " ") continue;
 
     embeds.push({ col, row, ch });
   }
@@ -134,11 +127,9 @@ window.addEventListener("resize", initCanvas);
 
 // ================= DRAW FRAME ==================
 function drawFrame() {
-  // ghosting fade
   ctx.fillStyle = "rgba(0,0,0,0.06)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 1) small Matrix rain
   ctx.font = rainFont + "px monospace";
   ctx.fillStyle = "rgba(255,255,255,0.70)";
 
@@ -156,18 +147,16 @@ function drawFrame() {
     }
   }
 
-  // 2) large floating ordered time/date chars
   ctx.font = "bold " + embedFont + "px monospace";
   ctx.fillStyle = "rgba(255,255,255,1)";
 
   embeds.forEach(e => {
-    const x = e.col * rainFont;  // grid horizontal alignment
+    const x = e.col * rainFont;
     const y = e.row * rainFont;
     ctx.fillText(e.ch, x, y);
   });
 }
 
-// warm up many frames so preview looks full immediately
 function warmup(frames) {
   for (let i = 0; i < frames; i++) drawFrame();
 }
