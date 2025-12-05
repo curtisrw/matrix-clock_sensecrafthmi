@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Matrix Clock for reTerminal E1001</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #0f0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                   "Segoe UI", sans-serif;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      text-align: center;
+      mix-blend-mode: screen;
+    }
+
+    .time {
+      font-size: 64px;  /* tweak for readability on 7.5" 800x480 */
+      letter-spacing: 0.14em;
+    }
+
+    .date {
+      font-size: 20px;
+      margin-top: 8px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="matrix"></canvas>
+  <div class="overlay">
+    <div class="time" id="time"></div>
+    <div class="date" id="date"></div>
+  </div>
+
+  <script>
+    // --- Matrix background on canvas ---
+    const canvas = document.getElementById("matrix");
+    const ctx = canvas.getContext("2d");
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      initDrops();
+    }
+
+    window.addEventListener("resize", resize);
+    resize();
+
+    const letters = "01ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%&*+-";
+    let drops = [];
+    let fontSize = 14;
+    let columns = 0;
+
+    function initDrops() {
+      fontSize = 14;
+      columns = Math.floor(canvas.width / fontSize);
+      drops = [];
+      for (let x = 0; x < columns; x++) {
+        drops[x] = Math.floor(Math.random() * -20); // start off-screen
+      }
+    }
+
+    function drawMatrix() {
+      // Slight trail effect
+      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#0f0";
+      ctx.font = fontSize + "px monospace";
+
+      for (let i = 0; i < drops.length; i++) {
+        const text = letters.charAt(Math.floor(Math.random() * letters.length));
+        const x = i * fontSize;
+        const y = drops[i] * fontSize;
+
+        ctx.fillText(text, x, y);
+
+        // Reset drop to top with random offset
+        if (y > canvas.height && Math.random() > 0.96) {
+          drops[i] = Math.floor(Math.random() * -10);
+        } else {
+          drops[i]++;
+        }
+      }
+    }
+
+    // For e-paper, you might want to slow this down (e.g. every 200–500ms)
+    setInterval(drawMatrix, 120);
+
+    // --- Time & date overlay ---
+    const timeEl = document.getElementById("time");
+    const dateEl = document.getElementById("date");
+
+    function pad(num) {
+      return num < 10 ? "0" + num : String(num);
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const h = pad(now.getHours());
+      const m = pad(now.getMinutes());
+      timeEl.textContent = `${h}:${m}`;
+
+      const options = { weekday: "short", year: "numeric", month: "short", day: "numeric" };
+      dateEl.textContent = now.toLocaleDateString(undefined, options);
+    }
+
+    updateClock();
+    // If you want minute-level updates (good for e-ink), once per minute is enough
+    setInterval(updateClock, 60 * 1000);
+  </script>
+</body>
+</html>
