@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Curtis Matrix Clock (Blended)</title>
+<title>Curtis Matrix Clock (Large Floating Characters)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
   html, body {
@@ -20,7 +20,7 @@
 <canvas id="matrix"></canvas>
 
 <script>
-// ========== TIME (5-MIN ROUND, 12-HOUR + AM/PM) ==========
+// ================= TIME (5-MIN ROUND, 12-HOUR) ==================
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
 function getRoundedTimestamp() {
@@ -49,35 +49,41 @@ function getRoundedTimestamp() {
 
 const { timeStr, dateStr } = getRoundedTimestamp();
 
-// =================== MATRIX SETUP ===================
+// Build character list
+const combinedStr = timeStr + "  " + dateStr;
+
+// ================= MATRIX SETUP ==================
 const canvas = document.getElementById("matrix");
 const ctx = canvas.getContext("2d");
 
-let fontSize = 12;
+let rainFont = 12;       // small font for rain
+let embedFont = 22;      // LARGE font only for time/date
 let cols = 0;
 let maxRows = 0;
 let drops = [];
 let embeds = [];
 
-const chars =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{};:<>,.?/";
+const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{};:<>,.?/";
 
-// compute layout for current size (800x480 + previews)
+// compute layout for current size
 function initCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
-  // smaller font -> more columns (dense rain)
-  fontSize = Math.floor(canvas.width / 64); // ≈64 cols at 800px
-  if (fontSize < 10) fontSize = 10;
-  if (fontSize > 14) fontSize = 14;
+  // small dense rain
+  rainFont = Math.floor(canvas.width / 68);
+  if (rainFont < 10) rainFont = 10;
+  if (rainFont > 14) rainFont = 14;
 
-  ctx.font = fontSize + "px monospace";
+  embedFont = Math.floor(rainFont * 1.9);  // ~2× larger, visually strong
+  if (embedFont < 18) embedFont = 18;
 
-  cols = Math.floor(canvas.width / fontSize);
-  maxRows = Math.floor(canvas.height / fontSize);
+  ctx.font = rainFont + "px monospace";
 
-  // drops start above screen to build vertical trails
+  cols = Math.floor(canvas.width / rainFont);
+  maxRows = Math.floor(canvas.height / rainFont);
+
+  // start drops above screen to create long trails
   drops = Array(cols)
     .fill(0)
     .map(() => Math.floor(Math.random() * -maxRows));
@@ -86,82 +92,81 @@ function initCanvas() {
 }
 
 function computeEmbeds() {
-  const centerCol = Math.floor(cols / 2);
-  const centerRow = Math.floor(maxRows / 2);
-
-  const timeRow = centerRow - 1;
-  const dateRow = centerRow + 1;
-
-  const timeStart = centerCol - Math.floor(timeStr.length / 2);
-  const dateStart = centerCol - Math.floor(dateStr.length / 2);
-
   embeds = [];
 
-  for (let i = 0; i < timeStr.length; i++) {
-    embeds.push({
-      col: timeStart + i,
-      row: timeRow,
-      ch: timeStr.charAt(i)
-    });
-  }
+  // scatter characters across central region of display
+  const minCol = Math.floor(cols * 0.18);
+  const maxCol = Math.floor(cols * 0.82);
 
-  for (let i = 0; i < dateStr.length; i++) {
-    embeds.push({
-      col: dateStart + i,
-      row: dateRow,
-      ch: dateStr.charAt(i)
-    });
+  const minRow = Math.floor(maxRows * 0.20);
+  const maxRow = Math.floor(maxRows * 0.80);
+
+  const used = new Set();
+
+  for (let i = 0; i < combinedStr.length; i++) {
+    const ch = combinedStr.charAt(i);
+    if (ch === " ") continue;
+
+    let col, row, key;
+    let tries = 0;
+
+    do {
+      col = Math.floor(Math.random() * (maxCol - minCol)) + minCol;
+      row = Math.floor(Math.random() * (maxRow - minRow)) + minRow;
+      key = col + ":" + row;
+      tries++;
+    } while (used.has(key) && tries < 80);
+
+    used.add(key);
+    embeds.push({ col, row, ch });
   }
 }
 
 initCanvas();
 window.addEventListener("resize", initCanvas);
 
-// =================== DRAW FRAME ===================
+// ================= DRAW FRAME ==================
 function drawFrame() {
-  // very light fade -> strong ghost trails
-  ctx.fillStyle = "rgba(0, 0, 0, 0.06)";
+  // ghosting fade
+  ctx.fillStyle = "rgba(0,0,0,0.06)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 1) normal rain
+  // ==== 1. Draw small RAIN ====
+  ctx.font = rainFont + "px monospace";
   ctx.fillStyle = "rgba(255,255,255,0.70)";
-  ctx.font = fontSize + "px monospace";
 
-  for (let col = 0; col < cols; col++) {
-    const x = col * fontSize;
-    const y = drops[col] * fontSize;
+  for (let c = 0; c < cols; c++) {
+    const x = c * rainFont;
+    const y = drops[c] * rainFont;
 
     const char = chars.charAt(Math.floor(Math.random() * chars.length));
     ctx.fillText(char, x, y);
 
-    drops[col]++;
+    drops[c]++;
 
-    if (drops[col] * fontSize > canvas.height && Math.random() > 0.975) {
-      drops[col] = Math.floor(Math.random() * -maxRows);
+    if (drops[c] * rainFont > canvas.height && Math.random() > 0.975) {
+      drops[c] = Math.floor(Math.random() * -maxRows);
     }
   }
 
-  // 2) overlay time/date characters on top of the rain
-  //    (same grid, just brighter + bold)
-  ctx.font = "bold " + fontSize + "px monospace";
-  ctx.fillStyle = "rgba(255,255,255,0.98)";
+  // ==== 2. Draw LARGE floating date/time characters ====
+  ctx.font = "bold " + embedFont + "px monospace";
+  ctx.fillStyle = "rgba(255,255,255,1)";   // full brightness
 
   embeds.forEach(e => {
-    const x = e.col * fontSize;
-    const y = e.row * fontSize;
+    const x = e.col * rainFont;       // grid-aligned
+    const y = e.row * rainFont;
     ctx.fillText(e.ch, x, y);
   });
 }
 
-// warm up a bunch of frames so the background gets dense immediately
+// warm up many frames so preview looks full immediately
 function warmup(frames) {
-  for (let i = 0; i < frames; i++) {
-    drawFrame();
-  }
+  for (let i = 0; i < frames; i++) drawFrame();
 }
 
-warmup(Math.floor(maxRows * 1.5));
-setInterval(drawFrame, 180);
+warmup(Math.floor(maxRows * 1.4));
+setInterval(drawFrame, 170);
 </script>
 </body>
 </html>
