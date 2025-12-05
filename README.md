@@ -1,4 +1,4 @@
-# Matrix Rain Clock for SenseCraft HMI (reTerminal E1001)
+# Matrix Clock for SenseCraft HMI (reTerminal E1001)
 
 This project provides a customized “Matrix Rain Clock” HTML page designed specifically for the **Seeed reTerminal E1001** running **SenseCraft HMI Cloud**.  
 It renders a dense Matrix-style falling code background while embedding the **current time and date** as large, bright “floating” characters inside the rain.
